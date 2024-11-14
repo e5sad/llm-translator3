@@ -1,4 +1,4 @@
-// llm_translate/index.js
+// index.js
 
 export { llmTranslate };
 
@@ -10,22 +10,26 @@ import {
     saveSettingsDebounced,
     substituteParams,
     updateMessageBlock,
-} from '../../../../script.js';
+} from '../../../scripts/script.js';
 
-import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
-import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
-import { findSecret, secret_state } from '../../../secrets.js';
+import { extension_settings, getContext } from '../../../scripts/extensions.js';
+import { callPopup, POPUP_TYPE } from '../../../scripts/ui/popup.js';
+
+// Secrets를 관리하는 함수들을 가져옵니다
+import { findSecret, secret_state } from '../../../scripts/secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
-const extensionName = "llm-translator3";
-const extensionFolderPath = `${extensionName}`;
+const extensionName = "llm_translate"; // 확장 프로그램의 이름
+const extensionFolderPath = `/data/default-user/extensions/${extensionName}`;
 
+// 확장 프로그램의 설정 객체 가져오기
 let extensionSettings = extension_settings[extensionName];
 if (!extensionSettings) {
     extensionSettings = {};
     extension_settings[extensionName] = extensionSettings;
 }
 
+// 기본 설정
 const defaultSettings = {
     llm_provider: 'openai',
     llm_model: '',
@@ -33,7 +37,7 @@ const defaultSettings = {
     auto_mode: false,
 };
 
-// 설정 불러오기
+// 설정 불러오기 함수
 function loadSettings() {
     for (const key in defaultSettings) {
         if (!extensionSettings.hasOwnProperty(key)) {
@@ -48,7 +52,7 @@ function loadSettings() {
     updateModelList();
 }
 
-// 모델 목록 업데이트
+// 모델 목록 업데이트 함수
 function updateModelList() {
     const provider = $('#llm_provider').val();
     const modelSelect = $('#llm_model');
@@ -83,7 +87,7 @@ function updateModelList() {
     extensionSettings.llm_model = selectedModel;
 }
 
-// API 키(Secrets) 가져오기 함수
+// API 키 가져오기 함수
 async function getApiKey(provider) {
     const secretKey = `${provider}_api_key`;
 
@@ -176,7 +180,7 @@ async function llmTranslate(text) {
     }
 }
 
-// 메시지 번역 및 업데이트
+// 메시지 번역 및 업데이트 함수
 async function translateMessage(messageId) {
     const context = getContext();
     const message = context.chat[messageId];
@@ -201,7 +205,7 @@ async function translateMessage(messageId) {
     }
 }
 
-// 전체 채팅 번역
+// 전체 채팅 번역 함수
 async function onTranslateChatClick() {
     const context = getContext();
     const chat = context.chat;
@@ -221,7 +225,7 @@ async function onTranslateChatClick() {
     toastr.success('채팅 번역이 완료되었습니다.');
 }
 
-// 입력 메시지 번역
+// 입력 메시지 번역 함수
 async function onTranslateInputMessageClick() {
     const textarea = document.getElementById('send_textarea');
 
@@ -245,11 +249,11 @@ async function onTranslateInputMessageClick() {
     }
 }
 
-// 번역된 메시지 삭제
+// 번역된 메시지 삭제 함수
 async function onTranslationsClearClick() {
-    const confirm = await callGenericPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
+    const userConfirmed = await callPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
 
-    if (!confirm) {
+    if (!userConfirmed) {
         return;
     }
 
@@ -267,14 +271,35 @@ async function onTranslationsClearClick() {
     toastr.success('번역된 내용이 삭제되었습니다.');
 }
 
+// 템플릿 파일을 직접 로드하는 함수
+async function fetchTemplate(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to load template: ${url}`);
+    }
+    return await response.text();
+}
+
 // 이벤트 리스너 등록
 $(document).ready(async function() {
-    const html = await renderExtensionTemplateAsync(extensionFolderPath, 'index');
-    const buttonHtml = await renderExtensionTemplateAsync(extensionFolderPath, 'buttons');
+    try {
+        // 템플릿 파일 로드
+        const html = await fetchTemplate(`${extensionFolderPath}/index.html`);
+        const buttonHtml = await fetchTemplate(`${extensionFolderPath}/buttons.html`);
 
-    $('#translate_wand_container').append(buttonHtml);
-    $('#translation_container').append(html);
+        // 템플릿을 DOM에 추가
+        $('#translate_wand_container').append(buttonHtml);
+        $('#translation_container').append(html);
 
+        // 초기화 함수 호출
+        initializeExtension();
+    } catch (error) {
+        console.error('Failed to load templates:', error);
+    }
+});
+
+// 초기화 함수
+function initializeExtension() {
     // 버튼 클릭 이벤트
     $('#llm_translate_chat').off('click').on('click', onTranslateChatClick);
     $('#llm_translate_input_message').off('click').on('click', onTranslateInputMessageClick);
@@ -297,6 +322,7 @@ $(document).ready(async function() {
         saveSettingsDebounced();
     });
 
+    // 설정 불러오기
     loadSettings();
 
     // 메시지 렌더링 시 번역 적용
@@ -309,4 +335,4 @@ $(document).ready(async function() {
     eventSource.on(event_types.MESSAGE_SWIPED, function({ messageId }) {
         translateMessage(messageId);
     });
-});
+}
