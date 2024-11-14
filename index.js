@@ -11,7 +11,7 @@ import {
     saveSettingsDebounced,
     substituteParams,
     updateMessageBlock,
-} from '../../../../scripts/script.js';
+} from '../../../public/script.js';
 
 import { extension_settings, getContext } from '../../../../scripts/extensions.js';
 import { callPopup, POPUP_TYPE } from '../../../../scripts/popup.js';
