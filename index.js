@@ -14,13 +14,11 @@ import {
 
 import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
-
-// Secrets를 관리하는 함수들을 가져옵니다
 import { findSecret, secret_state } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
-const extensionName = "llm_translate";
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+const extensionName = "llm-translator3";
+const extensionFolderPath = `data/extensions/${extensionName}`;
 const extensionSettings = extension_settings[extensionName];
 
 const defaultSettings = {
