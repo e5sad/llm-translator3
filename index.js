@@ -2,7 +2,6 @@
 
 export { llmTranslate };
 
-// import 구문의 경로를 수정합니다.
 import {
     eventSource,
     event_types,
@@ -11,19 +10,16 @@ import {
     saveSettingsDebounced,
     substituteParams,
     updateMessageBlock,
-} from '../../../../public/scripts.js';
+} from '../../../script.js';
 
-import { extension_settings, getContext } from '../../../../public/scripts/extensions.js';
-import { callPopup, POPUP_TYPE } from '../../../../public/scripts/popup.js';
+import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../extensions.js';
+import { callPopup, POPUP_TYPE } from '../../popup.js';
 
-// Secrets를 관리하는 함수들을 가져옵니다.
-import { findSecret, secret_state } from '../../../../public/scripts/secrets.js';
+import { findSecret, secret_state } from '../../secrets.js';
 
-// 확장 프로그램의 이름과 경로를 지정합니다.
-const extensionName = "llm_translator3"; // 확장 프로그램의 이름
-const extensionFolderPath = `/data/default-user/extensions/${extensionName}`;
+const extensionName = "llm-translator3"; // 확장 프로그램의 이름과 폴더 이름 동일
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
-// 확장 프로그램의 설정 객체 가져오기
 let extensionSettings = extension_settings[extensionName];
 if (!extensionSettings) {
     extensionSettings = {};
@@ -82,7 +78,6 @@ function updateModelList() {
         modelSelect.append(`<option value="${model}">${model}</option>`);
     }
 
-    // 이전에 선택한 모델이 있으면 선택, 없으면 첫 번째 모델 선택
     const selectedModel = extensionSettings.llm_model || models[0];
     modelSelect.val(selectedModel);
     extensionSettings.llm_model = selectedModel;
@@ -92,7 +87,6 @@ function updateModelList() {
 async function getApiKey(provider) {
     const secretKey = `${provider}_api_key`;
 
-    // secret_state에서 키를 확인하고, 없으면 findSecret을 통해 가져옵니다.
     if (secret_state[secretKey]) {
         return await findSecret(secretKey);
     } else {
@@ -111,7 +105,6 @@ async function llmTranslate(text) {
     let apiUrl = '';
     let requestBody = {};
 
-    // API 키를 가져옵니다.
     const apiKey = await getApiKey(provider);
 
     switch (provider) {
@@ -163,7 +156,6 @@ async function llmTranslate(text) {
 
     if (response.ok) {
         const result = await response.json();
-        // 공급자별로 응답 형식이 다르므로 처리 필요
         switch (provider) {
             case 'openai':
                 return result.choices[0].message.content.trim();
@@ -192,7 +184,6 @@ async function translateMessage(messageId) {
         message.extra = {};
     }
 
-    // 이미 번역된 메시지는 건너뜁니다.
     if (message.extra.display_text) return;
 
     const originalText = substituteParams(message.mes, context.name1, message.name);
@@ -272,41 +263,23 @@ async function onTranslationsClearClick() {
     toastr.success('번역된 내용이 삭제되었습니다.');
 }
 
-// 템플릿 파일을 직접 로드하는 함수
-async function fetchTemplate(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to load template: ${url}`);
-    }
-    return await response.text();
-}
-
 // 이벤트 리스너 등록
 $(document).ready(async function() {
-    try {
-        // 템플릿 파일 로드
-        const html = await fetchTemplate(`${extensionFolderPath}/index.html`);
-        const buttonHtml = await fetchTemplate(`${extensionFolderPath}/buttons.html`);
+    const html = await renderExtensionTemplateAsync(extensionName, 'index');
+    const buttonHtml = await renderExtensionTemplateAsync(extensionName, 'buttons');
 
-        // 템플릿을 DOM에 추가
-        $('#translate_wand_container').append(buttonHtml);
-        $('#translation_container').append(html);
+    $('#translate_wand_container').append(buttonHtml);
+    $('#translation_container').append(html);
 
-        // 초기화 함수 호출
-        initializeExtension();
-    } catch (error) {
-        console.error('Failed to load templates:', error);
-    }
+    initializeExtension();
 });
 
 // 초기화 함수
 function initializeExtension() {
-    // 버튼 클릭 이벤트
     $('#llm_translate_chat').off('click').on('click', onTranslateChatClick);
     $('#llm_translate_input_message').off('click').on('click', onTranslateInputMessageClick);
     $('#llm_translation_clear').off('click').on('click', onTranslationsClearClick);
 
-    // 설정 변경 이벤트
     $('#llm_provider').off('change').on('change', function() {
         extensionSettings.llm_provider = $(this).val();
         updateModelList();
@@ -323,10 +296,8 @@ function initializeExtension() {
         saveSettingsDebounced();
     });
 
-    // 설정 불러오기
     loadSettings();
 
-    // 메시지 렌더링 시 번역 적용
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, function({ messageId }) {
         translateMessage(messageId);
     });
