@@ -18,7 +18,7 @@ import { findSecret, secret_state } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
-const extensionFolderPath = `data/extensions/${extensionName}`;
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const extensionSettings = extension_settings[extensionName];
 
 const defaultSettings = {
