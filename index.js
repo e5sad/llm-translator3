@@ -128,7 +128,7 @@ async function llmTranslate(text) {
 
     switch (provider) {
         case 'openai':
-            apiUrl = '/api/openai';
+            apiUrl = '/api/openai/v1';
             requestBody = {
                 apiKey: apiKey,
                 model: model,
