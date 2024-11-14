@@ -12,12 +12,13 @@ import {
     updateMessageBlock,
 } from '../../../../script.js';
 
-import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
-import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
+import { extension_settings, getContext } from '../../../extensions.js';
+// import { callGenericPopup, POPUP_TYPE } from '../../../popup.js'; // 불필요한 import 제거
 import { findSecret, secret_state } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 let extensionSettings = extension_settings[extensionName];
 if (!extensionSettings) {
@@ -246,9 +247,9 @@ async function onTranslateInputMessageClick() {
 
 // 번역된 메시지 삭제
 async function onTranslationsClearClick() {
-    const confirm = await callGenericPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
+    const confirmClear = confirm('번역된 내용을 삭제하시겠습니까?');
 
-    if (!confirm) {
+    if (!confirmClear) {
         return;
     }
 
@@ -268,8 +269,8 @@ async function onTranslationsClearClick() {
 
 // 이벤트 리스너 등록
 $(document).ready(async function() {
-    const html = await renderExtensionTemplateAsync(extensionName, 'index');
-    const buttonHtml = await renderExtensionTemplateAsync(extensionName, 'buttons');
+    const html = await $.get(`${extensionFolderPath}/index.html`);
+    const buttonHtml = await $.get(`${extensionFolderPath}/buttons.html`);
 
     $('#translate_wand_container').append(buttonHtml);
     $('#translation_container').append(html);
