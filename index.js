@@ -12,10 +12,10 @@ import {
     updateMessageBlock,
 } from '../../../script.js';
 
-import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../extensions.js';
-import { callPopup, POPUP_TYPE } from '../../popup.js';
+import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../../extensions.js';
+import { callPopup, POPUP_TYPE } from '../../../../popup.js';
 
-import { findSecret, secret_state } from '../../secrets.js';
+import { findSecret, secret_state } from '../../../../secrets.js';
 
 const extensionName = "llm-translator3"; // 확장 프로그램의 이름과 폴더 이름 동일
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
