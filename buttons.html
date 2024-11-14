@@ -1,0 +1,32 @@
+<!-- llm_translate/index.html -->
+
+<div class="translation_settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>LLM 번역 설정</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <label for="llm_provider">LLM 공급자</label>
+            <select id="llm_provider">
+                <option value="openai">OpenAI</option>
+                <option value="cohere">Cohere</option>
+                <option value="google">Google AI</option>
+                <option value="anthropic">Claude</option>
+            </select>
+
+            <label for="llm_model">모델 선택</label>
+            <select id="llm_model">
+                <!-- 선택한 공급자에 따라 모델 목록이 동적으로 변경됩니다 -->
+            </select>
+
+            <label for="llm_prompt">사용자 지정 프롬프트</label>
+            <textarea id="llm_prompt" placeholder="번역 지시문을 입력하세요."></textarea>
+
+            <div id="llm_translation_clear" class="menu_button">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>번역 삭제</span>
+            </div>
+        </div>
+    </div>
+</div>

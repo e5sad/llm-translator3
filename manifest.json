@@ -1,0 +1,11 @@
+{
+    "display_name": "llm-translator3",
+    "loading_order": "1",
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "author": "사용자 이름",
+    "version": "1.0.0",
+    "homePage": "https://github.com/yourusername/llm-translator3",
+    "auto_update": true
+}

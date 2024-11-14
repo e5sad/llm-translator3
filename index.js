@@ -1,0 +1,307 @@
+// llm_translate/index.js
+
+export { llmTranslate };
+
+import {
+    eventSource,
+    event_types,
+    getRequestHeaders,
+    reloadCurrentChat,
+    saveSettingsDebounced,
+    substituteParams,
+    updateMessageBlock,
+} from '../../../../script.js';
+
+import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
+import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
+import { findSecret, secret_state } from '../../../secrets.js';
+
+const defaultSettings = {
+    llm_provider: 'openai',
+    llm_model: '',
+    llm_prompt: 'Please translate the following text:',
+    auto_mode: false,
+};
+
+// 설정 불러오기
+function loadSettings() {
+    // 설정 초기화
+    if (!extension_settings.llm_translate) {
+        extension_settings.llm_translate = {};
+    }
+
+    for (const key in defaultSettings) {
+        if (!extension_settings.llm_translate.hasOwnProperty(key)) {
+            extension_settings.llm_translate[key] = defaultSettings[key];
+        }
+    }
+
+    // 설정 반영
+    $('#llm_provider').val(extension_settings.llm_translate.llm_provider);
+    $('#llm_prompt').val(extension_settings.llm_translate.llm_prompt);
+
+    updateModelList();
+}
+
+// 모델 목록 업데이트
+function updateModelList() {
+    const provider = $('#llm_provider').val();
+    const modelSelect = $('#llm_model');
+    modelSelect.empty();
+
+    let models = [];
+
+    switch (provider) {
+        case 'openai':
+            models = ['gpt‑3.5‑turbo', 'gpt‑4'];
+            break;
+        case 'cohere':
+            models = ['command', 'command-xlarge'];
+            break;
+        case 'google':
+            models = ['chat-bison', 'text-bison'];
+            break;
+        case 'anthropic':
+            models = ['claude-instant', 'claude-v1'];
+            break;
+        default:
+            models = [];
+    }
+
+    for (const model of models) {
+        modelSelect.append(`<option value="${model}">${model}</option>`);
+    }
+
+    // 이전에 선택한 모델이 있으면 선택, 없으면 첫 번째 모델 선택
+    const selectedModel = extension_settings.llm_translate.llm_model || models[0];
+    modelSelect.val(selectedModel);
+    extension_settings.llm_translate.llm_model = selectedModel;
+}
+
+// **API 키(Secrets) 가져오기 함수**
+async function getApiKey(provider) {
+    const secretKey = `${provider}_api_key`;
+
+    // secret_state에서 키를 확인하고, 없으면 findSecret을 통해 가져옵니다.
+    if (secret_state[secretKey]) {
+        return await findSecret(secretKey);
+    } else {
+        throw new Error(`${provider}의 API 키가 설정되어 있지 않습니다.`);
+    }
+}
+
+// LLM 번역 함수
+async function llmTranslate(text) {
+    const provider = extension_settings.llm_translate.llm_provider;
+    const model = extension_settings.llm_translate.llm_model;
+    const prompt = extension_settings.llm_translate.llm_prompt;
+
+    const fullPrompt = `${prompt}\n\n"${text}"`;
+
+    let apiUrl = '';
+    let requestBody = {};
+
+    // **API 키를 가져옵니다.**
+    const apiKey = await getApiKey(provider);
+
+    switch (provider) {
+        case 'openai':
+            apiUrl = '/api/openai';
+            requestBody = {
+                apiKey: apiKey,
+                model: model,
+                messages: [{ role: 'user', content: fullPrompt }],
+            };
+            break;
+
+        case 'cohere':
+            apiUrl = '/api/cohere';
+            requestBody = {
+                apiKey: apiKey,
+                model: model,
+                prompt: fullPrompt,
+            };
+            break;
+
+        case 'google':
+            apiUrl = '/api/google';
+            requestBody = {
+                apiKey: apiKey,
+                model: model,
+                prompt: fullPrompt,
+            };
+            break;
+
+        case 'anthropic':
+            apiUrl = '/api/anthropic';
+            requestBody = {
+                apiKey: apiKey,
+                model: model,
+                prompt: fullPrompt,
+            };
+            break;
+
+        default:
+            throw new Error('지원하지 않는 LLM 공급자입니다.');
+    }
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify(requestBody),
+    });
+
+    if (response.ok) {
+        const result = await response.json();
+        // 공급자별로 응답 형식이 다르므로 처리 필요
+        switch (provider) {
+            case 'openai':
+                return result.choices[0].message.content.trim();
+            case 'cohere':
+                return result.text.trim();
+            case 'google':
+                return result.candidates[0].output.trim();
+            case 'anthropic':
+                return result.completion.trim();
+            default:
+                return '';
+        }
+    } else {
+        throw new Error(`번역 실패: ${await response.text()}`);
+    }
+}
+
+// 메시지 번역 및 업데이트
+async function translateMessage(messageId) {
+    const context = getContext();
+    const message = context.chat[messageId];
+
+    if (!message) return;
+
+    if (typeof message.extra !== 'object') {
+        message.extra = {};
+    }
+
+    // 이미 번역된 메시지는 건너뜁니다.
+    if (message.extra.display_text) return;
+
+    const originalText = substituteParams(message.mes, context.name1, message.name);
+    try {
+        const translation = await llmTranslate(originalText);
+        message.extra.display_text = translation;
+        updateMessageBlock(messageId, message);
+    } catch (error) {
+        console.error(error);
+        toastr.error('번역에 실패하였습니다.');
+    }
+}
+
+// 전체 채팅 번역
+async function onTranslateChatClick() {
+    const context = getContext();
+    const chat = context.chat;
+
+    if (!chat || chat.length ===0) {
+        toastr.warning('번역할 채팅이 없습니다.');
+        return;
+    }
+
+    toastr.info('채팅 번역을 시작합니다. 잠시만 기다려주세요.');
+
+    for (let i =0 ; i < chat.length ; i++) {
+        await translateMessage(i);
+    }
+
+    await context.saveChat();
+    toastr.success('채팅 번역이 완료되었습니다.');
+}
+
+// 입력 메시지 번역
+async function onTranslateInputMessageClick() {
+    const textarea = document.getElementById('send_textarea');
+
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+        return;
+    }
+
+    if (!textarea.value) {
+        toastr.warning('먼저 메시지를 입력하세요.');
+        return;
+    }
+
+    try {
+        const translatedText = await llmTranslate(textarea.value);
+        textarea.value = translatedText;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        toastr.success('입력된 메시지가 번역되었습니다.');
+    } catch (error) {
+        console.error(error);
+        toastr.error('메시지 번역에 실패하였습니다.');
+    }
+}
+
+// 번역된 메시지 삭제
+async function onTranslationsClearClick() {
+    const confirm = await callGenericPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
+
+    if (!confirm) {
+        return;
+    }
+
+    const context = getContext();
+    const chat = context.chat;
+
+    for (const mes of chat) {
+        if (mes.extra) {
+            delete mes.extra.display_text;
+        }
+    }
+
+    await context.saveChat();
+    await reloadCurrentChat();
+    toastr.success('번역된 내용이 삭제되었습니다.');
+}
+
+// 이벤트 리스너 등록
+$(document).ready(async function() {
+    const html = await renderExtensionTemplateAsync('llm_translate', 'index');
+    const buttonHtml = await renderExtensionTemplateAsync('llm_translate', 'buttons');
+
+    $('#translate_wand_container').append(buttonHtml);
+    $('#translation_container').append(html);
+
+    // 버튼 클릭 이벤트
+    $('#llm_translate_chat').on('click', onTranslateChatClick);
+    $('#llm_translate_input_message').on('click', onTranslateInputMessageClick);
+    $('#llm_translation_clear').on('click', onTranslationsClearClick);
+
+    // 설정 변경 이벤트
+    $('#llm_provider').on('change', function() {
+        extension_settings.llm_translate.llm_provider = $(this).val();
+        updateModelList();
+        saveSettingsDebounced();
+    });
+
+    $('#llm_model').on('change', function() {
+        extension_settings.llm_translate.llm_model = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#llm_prompt').on('input', function() {
+        extension_settings.llm_translate.llm_prompt = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    loadSettings();
+
+    // 메시지 렌더링 시 번역 적용
+    eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, function({ messageId }) {
+        translateMessage(messageId);
+    });
+    eventSource.on(event_types.USER_MESSAGE_RENDERED, function({ messageId }) {
+        translateMessage(messageId);
+    });
+    eventSource.on(event_types.MESSAGE_SWIPED, function({ messageId }) {
+        translateMessage(messageId);
+    });
+});
