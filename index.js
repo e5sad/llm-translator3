@@ -18,8 +18,13 @@ import { findSecret, secret_state } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-const extensionSettings = extension_settings[extensionName];
+const extensionFolderPath = `${extensionName}`;
+
+let extensionSettings = extension_settings[extensionName];
+if (!extensionSettings) {
+    extensionSettings = {};
+    extension_settings[extensionName] = extensionSettings;
+}
 
 const defaultSettings = {
     llm_provider: 'openai',
@@ -30,12 +35,6 @@ const defaultSettings = {
 
 // 설정 불러오기
 function loadSettings() {
-    // 설정 초기화
-    if (!extensionSettings) {
-        extensionSettings = {};
-        extension_settings[extensionName] = extensionSettings;
-    }
-
     for (const key in defaultSettings) {
         if (!extensionSettings.hasOwnProperty(key)) {
             extensionSettings[key] = defaultSettings[key];
