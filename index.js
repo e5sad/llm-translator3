@@ -14,7 +14,14 @@ import {
 
 import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
+
+// Secrets를 관리하는 함수들을 가져옵니다
 import { findSecret, secret_state } from '../../../secrets.js';
+
+// 확장 프로그램의 이름과 경로를 지정합니다.
+const extensionName = "llm_translate";
+const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+const extensionSettings = extension_settings[extensionName];
 
 const defaultSettings = {
     llm_provider: 'openai',
@@ -26,19 +33,20 @@ const defaultSettings = {
 // 설정 불러오기
 function loadSettings() {
     // 설정 초기화
-    if (!extension_settings.llm_translate) {
-        extension_settings.llm_translate = {};
+    if (!extensionSettings) {
+        extensionSettings = {};
+        extension_settings[extensionName] = extensionSettings;
     }
 
     for (const key in defaultSettings) {
-        if (!extension_settings.llm_translate.hasOwnProperty(key)) {
-            extension_settings.llm_translate[key] = defaultSettings[key];
+        if (!extensionSettings.hasOwnProperty(key)) {
+            extensionSettings[key] = defaultSettings[key];
         }
     }
 
     // 설정 반영
-    $('#llm_provider').val(extension_settings.llm_translate.llm_provider);
-    $('#llm_prompt').val(extension_settings.llm_translate.llm_prompt);
+    $('#llm_provider').val(extensionSettings.llm_provider);
+    $('#llm_prompt').val(extensionSettings.llm_prompt);
 
     updateModelList();
 }
@@ -73,12 +81,12 @@ function updateModelList() {
     }
 
     // 이전에 선택한 모델이 있으면 선택, 없으면 첫 번째 모델 선택
-    const selectedModel = extension_settings.llm_translate.llm_model || models[0];
+    const selectedModel = extensionSettings.llm_model || models[0];
     modelSelect.val(selectedModel);
-    extension_settings.llm_translate.llm_model = selectedModel;
+    extensionSettings.llm_model = selectedModel;
 }
 
-// **API 키(Secrets) 가져오기 함수**
+// API 키(Secrets) 가져오기 함수
 async function getApiKey(provider) {
     const secretKey = `${provider}_api_key`;
 
@@ -92,16 +100,16 @@ async function getApiKey(provider) {
 
 // LLM 번역 함수
 async function llmTranslate(text) {
-    const provider = extension_settings.llm_translate.llm_provider;
-    const model = extension_settings.llm_translate.llm_model;
-    const prompt = extension_settings.llm_translate.llm_prompt;
+    const provider = extensionSettings.llm_provider;
+    const model = extensionSettings.llm_model;
+    const prompt = extensionSettings.llm_prompt;
 
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
     let apiUrl = '';
     let requestBody = {};
 
-    // **API 키를 가져옵니다.**
+    // API 키를 가져옵니다.
     const apiKey = await getApiKey(provider);
 
     switch (provider) {
@@ -264,31 +272,31 @@ async function onTranslationsClearClick() {
 
 // 이벤트 리스너 등록
 $(document).ready(async function() {
-    const html = await renderExtensionTemplateAsync('llm_translate', 'index');
-    const buttonHtml = await renderExtensionTemplateAsync('llm_translate', 'buttons');
+    const html = await renderExtensionTemplateAsync(extensionFolderPath, 'index');
+    const buttonHtml = await renderExtensionTemplateAsync(extensionFolderPath, 'buttons');
 
     $('#translate_wand_container').append(buttonHtml);
     $('#translation_container').append(html);
 
     // 버튼 클릭 이벤트
-    $('#llm_translate_chat').on('click', onTranslateChatClick);
-    $('#llm_translate_input_message').on('click', onTranslateInputMessageClick);
-    $('#llm_translation_clear').on('click', onTranslationsClearClick);
+    $('#llm_translate_chat').off('click').on('click', onTranslateChatClick);
+    $('#llm_translate_input_message').off('click').on('click', onTranslateInputMessageClick);
+    $('#llm_translation_clear').off('click').on('click', onTranslationsClearClick);
 
     // 설정 변경 이벤트
-    $('#llm_provider').on('change', function() {
-        extension_settings.llm_translate.llm_provider = $(this).val();
+    $('#llm_provider').off('change').on('change', function() {
+        extensionSettings.llm_provider = $(this).val();
         updateModelList();
         saveSettingsDebounced();
     });
 
-    $('#llm_model').on('change', function() {
-        extension_settings.llm_translate.llm_model = $(this).val();
+    $('#llm_model').off('change').on('change', function() {
+        extensionSettings.llm_model = $(this).val();
         saveSettingsDebounced();
     });
 
-    $('#llm_prompt').on('input', function() {
-        extension_settings.llm_translate.llm_prompt = $(this).val();
+    $('#llm_prompt').off('input').on('input', function() {
+        extensionSettings.llm_prompt = $(this).val();
         saveSettingsDebounced();
     });
 
