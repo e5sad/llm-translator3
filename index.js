@@ -11,13 +11,13 @@ import {
     saveSettingsDebounced,
     substituteParams,
     updateMessageBlock,
-} from '../../../public/script.js';
+} from '../../../../../public/scripts.js';
 
-import { extension_settings, getContext } from '../../../../scripts/extensions.js';
-import { callPopup, POPUP_TYPE } from '../../../../scripts/popup.js';
+import { extension_settings, getContext } from '../../../../../public/scripts/extensions.js';
+import { callPopup, POPUP_TYPE } from '../../../../../public/scripts/popup.js';
 
 // Secrets를 관리하는 함수들을 가져옵니다.
-import { findSecret, secret_state } from '../../../../scripts/secrets.js';
+import { findSecret, secret_state } from '../../../../../public/scripts/secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm_translate"; // 확장 프로그램의 이름
