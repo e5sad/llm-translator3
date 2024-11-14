@@ -13,8 +13,7 @@ import {
 } from '../../../../script.js';
 
 import { extension_settings, getContext } from '../../../extensions.js';
-// import { callGenericPopup, POPUP_TYPE } from '../../../popup.js'; // 불필요한 import 제거
-import { findSecret, secret_state } from '../../../secrets.js';
+import { findSecret, secret_state, SECRET_KEYS } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
@@ -85,7 +84,25 @@ function updateModelList() {
 
 // API 키(Secrets) 가져오기 함수
 async function getApiKey(provider) {
-    const secretKey = `${provider}_api_key`;
+    let secretKey = '';
+
+    // provider에 따라 SECRET_KEYS의 키를 설정
+    switch (provider) {
+        case 'openai':
+            secretKey = SECRET_KEYS.OPENAI;
+            break;
+        case 'cohere':
+            secretKey = SECRET_KEYS.COHERE;
+            break;
+        case 'google':
+            secretKey = SECRET_KEYS.MAKERSUITE;
+            break;
+        case 'anthropic':
+            secretKey = SECRET_KEYS.CLAUDE;
+            break;
+        default:
+            throw new Error('지원하지 않는 LLM 공급자입니다.');
+    }
 
     // secret_state에서 키를 확인하고, 없으면 findSecret을 통해 가져옵니다.
     if (secret_state[secretKey]) {
