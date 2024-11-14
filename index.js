@@ -1,4 +1,4 @@
-// index.js
+// llm_translate/index.js
 
 export { llmTranslate };
 
@@ -10,15 +10,14 @@ import {
     saveSettingsDebounced,
     substituteParams,
     updateMessageBlock,
-} from '../../../script.js';
+} from '../../../../script.js';
 
-import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../../extensions.js';
-import { callPopup, POPUP_TYPE } from '../../../../popup.js';
+import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
+import { callGenericPopup, POPUP_TYPE } from '../../../popup.js';
+import { findSecret, secret_state } from '../../../secrets.js';
 
-import { findSecret, secret_state } from '../../../../secrets.js';
-
-const extensionName = "llm-translator3"; // 확장 프로그램의 이름과 폴더 이름 동일
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+// 확장 프로그램의 이름과 경로를 지정합니다.
+const extensionName = "llm-translator3";
 
 let extensionSettings = extension_settings[extensionName];
 if (!extensionSettings) {
@@ -26,7 +25,6 @@ if (!extensionSettings) {
     extension_settings[extensionName] = extensionSettings;
 }
 
-// 기본 설정
 const defaultSettings = {
     llm_provider: 'openai',
     llm_model: '',
@@ -34,7 +32,7 @@ const defaultSettings = {
     auto_mode: false,
 };
 
-// 설정 불러오기 함수
+// 설정 불러오기
 function loadSettings() {
     for (const key in defaultSettings) {
         if (!extensionSettings.hasOwnProperty(key)) {
@@ -49,7 +47,7 @@ function loadSettings() {
     updateModelList();
 }
 
-// 모델 목록 업데이트 함수
+// 모델 목록 업데이트
 function updateModelList() {
     const provider = $('#llm_provider').val();
     const modelSelect = $('#llm_model');
@@ -78,15 +76,17 @@ function updateModelList() {
         modelSelect.append(`<option value="${model}">${model}</option>`);
     }
 
+    // 이전에 선택한 모델이 있으면 선택, 없으면 첫 번째 모델 선택
     const selectedModel = extensionSettings.llm_model || models[0];
     modelSelect.val(selectedModel);
     extensionSettings.llm_model = selectedModel;
 }
 
-// API 키 가져오기 함수
+// API 키(Secrets) 가져오기 함수
 async function getApiKey(provider) {
     const secretKey = `${provider}_api_key`;
 
+    // secret_state에서 키를 확인하고, 없으면 findSecret을 통해 가져옵니다.
     if (secret_state[secretKey]) {
         return await findSecret(secretKey);
     } else {
@@ -105,6 +105,7 @@ async function llmTranslate(text) {
     let apiUrl = '';
     let requestBody = {};
 
+    // API 키를 가져옵니다.
     const apiKey = await getApiKey(provider);
 
     switch (provider) {
@@ -156,6 +157,7 @@ async function llmTranslate(text) {
 
     if (response.ok) {
         const result = await response.json();
+        // 공급자별로 응답 형식이 다르므로 처리 필요
         switch (provider) {
             case 'openai':
                 return result.choices[0].message.content.trim();
@@ -173,7 +175,7 @@ async function llmTranslate(text) {
     }
 }
 
-// 메시지 번역 및 업데이트 함수
+// 메시지 번역 및 업데이트
 async function translateMessage(messageId) {
     const context = getContext();
     const message = context.chat[messageId];
@@ -184,6 +186,7 @@ async function translateMessage(messageId) {
         message.extra = {};
     }
 
+    // 이미 번역된 메시지는 건너뜁니다.
     if (message.extra.display_text) return;
 
     const originalText = substituteParams(message.mes, context.name1, message.name);
@@ -197,7 +200,7 @@ async function translateMessage(messageId) {
     }
 }
 
-// 전체 채팅 번역 함수
+// 전체 채팅 번역
 async function onTranslateChatClick() {
     const context = getContext();
     const chat = context.chat;
@@ -217,7 +220,7 @@ async function onTranslateChatClick() {
     toastr.success('채팅 번역이 완료되었습니다.');
 }
 
-// 입력 메시지 번역 함수
+// 입력 메시지 번역
 async function onTranslateInputMessageClick() {
     const textarea = document.getElementById('send_textarea');
 
@@ -241,11 +244,11 @@ async function onTranslateInputMessageClick() {
     }
 }
 
-// 번역된 메시지 삭제 함수
+// 번역된 메시지 삭제
 async function onTranslationsClearClick() {
-    const userConfirmed = await callPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
+    const confirm = await callGenericPopup('번역된 내용을 삭제하시겠습니까?', POPUP_TYPE.CONFIRM);
 
-    if (!userConfirmed) {
+    if (!confirm) {
         return;
     }
 
@@ -271,15 +274,12 @@ $(document).ready(async function() {
     $('#translate_wand_container').append(buttonHtml);
     $('#translation_container').append(html);
 
-    initializeExtension();
-});
-
-// 초기화 함수
-function initializeExtension() {
+    // 버튼 클릭 이벤트
     $('#llm_translate_chat').off('click').on('click', onTranslateChatClick);
     $('#llm_translate_input_message').off('click').on('click', onTranslateInputMessageClick);
     $('#llm_translation_clear').off('click').on('click', onTranslationsClearClick);
 
+    // 설정 변경 이벤트
     $('#llm_provider').off('change').on('change', function() {
         extensionSettings.llm_provider = $(this).val();
         updateModelList();
@@ -298,6 +298,7 @@ function initializeExtension() {
 
     loadSettings();
 
+    // 메시지 렌더링 시 번역 적용
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, function({ messageId }) {
         translateMessage(messageId);
     });
@@ -307,4 +308,4 @@ function initializeExtension() {
     eventSource.on(event_types.MESSAGE_SWIPED, function({ messageId }) {
         translateMessage(messageId);
     });
-}
+});
