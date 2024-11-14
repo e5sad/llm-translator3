@@ -20,7 +20,7 @@ import { callPopup, POPUP_TYPE } from '../../../../public/scripts/popup.js';
 import { findSecret, secret_state } from '../../../../public/scripts/secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
-const extensionName = "llm_translate"; // 확장 프로그램의 이름
+const extensionName = "llm_translator3"; // 확장 프로그램의 이름
 const extensionFolderPath = `/data/default-user/extensions/${extensionName}`;
 
 // 확장 프로그램의 설정 객체 가져오기
