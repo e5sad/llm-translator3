@@ -43,20 +43,19 @@ async function llmTranslate(text) {
     const prompt = extensionSettings.llm_prompt;
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    // '/api/chat/completions' 엔드포인트 사용
-    const response = await fetch('/api/chat/completions', {
+    // '/api/openai/chat/completions' 엔드포인트 사용
+    const response = await fetch('/api/openai/chat/completions', {
         method: 'POST',
         headers: getRequestHeaders(),
         body: JSON.stringify({
-            model: model,
             messages: [{
                 role: 'user',
                 content: fullPrompt
             }],
+            model: model,
             temperature: 0.7,
             max_tokens: 500,
-            stream: false,
-            provider: provider,
+            stream: false
         }),
     });
 
@@ -68,6 +67,8 @@ async function llmTranslate(text) {
     const result = await response.json();
     return result.choices[0].message.content.trim();
 }
+
+// 나머지 코드는 그대로 유지...
 
 // 메시지 번역 및 업데이트 함수
 async function translateMessage(messageId) {
