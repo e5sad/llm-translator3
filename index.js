@@ -13,7 +13,8 @@ import {
 } from '../../../../script.js';
 
 import { extension_settings, getContext } from '../../../extensions.js';
-import { findSecret, secret_state, SECRET_KEYS } from '../../../secrets.js';
+// secrets.js에서 필요한 함수와 변수를 import합니다.
+import { findSecret, SECRET_KEYS } from '../../../secrets.js';
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
@@ -27,12 +28,12 @@ if (!extensionSettings) {
 
 const defaultSettings = {
     llm_provider: 'openai',
-    llm_model: '',
+    llm_model: 'gpt‑3.5‑turbo',
     llm_prompt: 'Please translate the following text:',
     auto_mode: false,
 };
 
-// 설정 불러오기
+// 설정 불러오기 함수
 function loadSettings() {
     for (const key in defaultSettings) {
         if (!extensionSettings.hasOwnProperty(key)) {
@@ -40,14 +41,14 @@ function loadSettings() {
         }
     }
 
-    // 설정 반영
+    // 설정 적용
     $('#llm_provider').val(extensionSettings.llm_provider);
     $('#llm_prompt').val(extensionSettings.llm_prompt);
 
     updateModelList();
 }
 
-// 모델 목록 업데이트
+// 모델 목록 업데이트 함수
 function updateModelList() {
     const provider = $('#llm_provider').val();
     const modelSelect = $('#llm_model');
@@ -59,6 +60,7 @@ function updateModelList() {
         case 'openai':
             models = ['gpt‑3.5‑turbo', 'gpt‑4'];
             break;
+        // 다른 공급자들은 일단 그대로 둡니다.
         case 'cohere':
             models = ['command', 'command-xlarge'];
             break;
@@ -76,13 +78,13 @@ function updateModelList() {
         modelSelect.append(`<option value="${model}">${model}</option>`);
     }
 
-    // 이전에 선택한 모델이 있으면 선택, 없으면 첫 번째 모델 선택
+    // 이전에 선택한 모델이 있으면 선택하고, 없으면 첫 번째 모델 선택
     const selectedModel = extensionSettings.llm_model || models[0];
     modelSelect.val(selectedModel);
     extensionSettings.llm_model = selectedModel;
 }
 
-// API 키(Secrets) 가져오기 함수
+// API 키 가져오기 함수
 async function getApiKey(provider) {
     let secretKey = '';
 
@@ -91,6 +93,7 @@ async function getApiKey(provider) {
         case 'openai':
             secretKey = SECRET_KEYS.OPENAI;
             break;
+        // 다른 공급자들은 일단 그대로 둡니다.
         case 'cohere':
             secretKey = SECRET_KEYS.COHERE;
             break;
@@ -104,9 +107,11 @@ async function getApiKey(provider) {
             throw new Error('지원하지 않는 LLM 공급자입니다.');
     }
 
-    // secret_state에서 키를 확인하고, 없으면 findSecret을 통해 가져옵니다.
-    if (secret_state[secretKey]) {
-        return await findSecret(secretKey);
+    // findSecret을 통해 API 키를 가져옵니다.
+    const apiKey = await findSecret(secretKey);
+
+    if (apiKey) {
+        return apiKey;
     } else {
         throw new Error(`${provider}의 API 키가 설정되어 있지 않습니다.`);
     }
@@ -118,6 +123,7 @@ async function llmTranslate(text) {
     const model = extensionSettings.llm_model;
     const prompt = extensionSettings.llm_prompt;
 
+    // 입력한 프롬프트와 번역할 텍스트를 합칩니다.
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
     let apiUrl = '';
@@ -126,45 +132,17 @@ async function llmTranslate(text) {
     // API 키를 가져옵니다.
     const apiKey = await getApiKey(provider);
 
-    switch (provider) {
-        case 'openai':
-            apiUrl = '/api/openai/v1';
-            requestBody = {
-                apiKey: apiKey,
-                model: model,
-                messages: [{ role: 'user', content: fullPrompt }],
-            };
-            break;
-
-        case 'cohere':
-            apiUrl = '/api/cohere';
-            requestBody = {
-                apiKey: apiKey,
-                model: model,
-                prompt: fullPrompt,
-            };
-            break;
-
-        case 'google':
-            apiUrl = '/api/google';
-            requestBody = {
-                apiKey: apiKey,
-                model: model,
-                prompt: fullPrompt,
-            };
-            break;
-
-        case 'anthropic':
-            apiUrl = '/api/anthropic';
-            requestBody = {
-                apiKey: apiKey,
-                model: model,
-                prompt: fullPrompt,
-            };
-            break;
-
-        default:
-            throw new Error('지원하지 않는 LLM 공급자입니다.');
+    // OpenAI API 요청을 구성합니다.
+    if (provider === 'openai') {
+        // SillyTavern 서버의 /api/openai/v1/engines/{model}/completions 엔드포인트를 사용합니다.
+        apiUrl = `/api/openai/v1/chat/completions`;
+        requestBody = {
+            model: model,
+            messages: [{ role: 'user', content: fullPrompt }],
+        };
+    } else {
+        // 다른 공급자들은 일단 그대로 둡니다.
+        throw new Error('현재 OpenAI만 지원됩니다.');
     }
 
     const response = await fetch(apiUrl, {
@@ -175,25 +153,18 @@ async function llmTranslate(text) {
 
     if (response.ok) {
         const result = await response.json();
-        // 공급자별로 응답 형식이 다르므로 처리 필요
-        switch (provider) {
-            case 'openai':
-                return result.choices[0].message.content.trim();
-            case 'cohere':
-                return result.text.trim();
-            case 'google':
-                return result.candidates[0].output.trim();
-            case 'anthropic':
-                return result.completion.trim();
-            default:
-                return '';
+        // OpenAI 응답 처리를 정확히 합니다.
+        if (provider === 'openai') {
+            return result.choices[0].message.content.trim();
+        } else {
+            return '';
         }
     } else {
         throw new Error(`번역 실패: ${await response.text()}`);
     }
 }
 
-// 메시지 번역 및 업데이트
+// 메시지 번역 및 업데이트 함수
 async function translateMessage(messageId) {
     const context = getContext();
     const message = context.chat[messageId];
@@ -207,6 +178,7 @@ async function translateMessage(messageId) {
     // 이미 번역된 메시지는 건너뜁니다.
     if (message.extra.display_text) return;
 
+    // 메시지의 원문을 가져옵니다.
     const originalText = substituteParams(message.mes, context.name1, message.name);
     try {
         const translation = await llmTranslate(originalText);
@@ -218,7 +190,7 @@ async function translateMessage(messageId) {
     }
 }
 
-// 전체 채팅 번역
+// 전체 채팅 번역 함수
 async function onTranslateChatClick() {
     const context = getContext();
     const chat = context.chat;
@@ -238,7 +210,7 @@ async function onTranslateChatClick() {
     toastr.success('채팅 번역이 완료되었습니다.');
 }
 
-// 입력 메시지 번역
+// 입력 메시지 번역 함수
 async function onTranslateInputMessageClick() {
     const textarea = document.getElementById('send_textarea');
 
@@ -262,7 +234,7 @@ async function onTranslateInputMessageClick() {
     }
 }
 
-// 번역된 메시지 삭제
+// 번역된 메시지 삭제 함수
 async function onTranslationsClearClick() {
     const confirmClear = confirm('번역된 내용을 삭제하시겠습니까?');
 
