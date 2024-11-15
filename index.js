@@ -14,8 +14,6 @@ import {
 
 import { extension_settings, getContext } from '../../../extensions.js';
 
-// secrets.js 관련 import는 제거합니다.
-
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -93,20 +91,25 @@ async function llmTranslate(text) {
     // 입력한 프롬프트와 번역할 텍스트를 합칩니다.
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    let apiUrl = '';
+    let apiUrl = '/generate';
     let requestBody = {};
 
     // 클라이언트에서는 서버로 요청을 보냅니다.
     if (provider === 'openai') {
-        apiUrl = `/api/openai/chat`;
         requestBody = {
+            prompt: fullPrompt,
             model: model,
-            messages: [{ role: 'user', content: fullPrompt }],
-            // 필요에 따라 temperature 등의 추가 설정을 포함할 수 있습니다.
+            api: 'openai',
+            // 필요한 경우 추가 설정을 포함할 수 있습니다.
         };
     } else {
-        // 다른 공급자들은 일단 그대로 둡니다.
-        throw new Error('현재 OpenAI만 지원됩니다.');
+        // 다른 공급자들도 동일한 방식으로 처리
+        requestBody = {
+            prompt: fullPrompt,
+            model: model,
+            api: provider,
+            // 필요한 경우 추가 설정을 포함할 수 있습니다.
+        };
     }
 
     const response = await fetch(apiUrl, {
@@ -119,12 +122,8 @@ async function llmTranslate(text) {
 
     if (response.ok) {
         const result = await response.json();
-        // OpenAI 응답 처리를 정확히 합니다.
-        if (provider === 'openai') {
-            return result.choices[0].message.content.trim();
-        } else {
-            return '';
-        }
+        // 응답에서 message를 추출합니다.
+        return result.message.trim();
     } else {
         throw new Error(`번역 실패: ${await response.text()}`);
     }
