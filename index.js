@@ -13,10 +13,8 @@ import {
 } from '../../../../script.js';
 
 import { extension_settings, getContext } from '../../../extensions.js';
+import { SECRET_KEYS, secret_state } from '../../../secrets.js';
 
-// secrets.js의 import를 제거합니다.
-
-// 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
@@ -28,108 +26,48 @@ if (!extensionSettings) {
 
 const defaultSettings = {
     llm_provider: 'openai',
-    llm_model: 'gpt‑3.5‑turbo',
+    llm_model: 'gpt-3.5-turbo',
     llm_prompt: 'Please translate the following text:',
     auto_mode: false,
 };
 
-// 설정 불러오기 함수
-function loadSettings() {
-    for (const key in defaultSettings) {
-        if (!extensionSettings.hasOwnProperty(key)) {
-            extensionSettings[key] = defaultSettings[key];
-        }
-    }
-
-    // 설정 적용
-    $('#llm_provider').val(extensionSettings.llm_provider);
-    $('#llm_prompt').val(extensionSettings.llm_prompt);
-
-    updateModelList();
-}
-
-// 모델 목록 업데이트 함수
-function updateModelList() {
-    const provider = $('#llm_provider').val();
-    const modelSelect = $('#llm_model');
-    modelSelect.empty();
-
-    let models = [];
-
-    switch (provider) {
-        case 'openai':
-            models = ['gpt‑3.5‑turbo', 'gpt‑4'];
-            break;
-        // 다른 공급자들은 일단 그대로 둡니다.
-        case 'cohere':
-            models = ['command', 'command-xlarge'];
-            break;
-        case 'google':
-            models = ['chat-bison', 'text-bison'];
-            break;
-        case 'anthropic':
-            models = ['claude-instant', 'claude-v1'];
-            break;
-        default:
-            models = [];
-    }
-
-    for (const model of models) {
-        modelSelect.append(`<option value="${model}">${model}</option>`);
-    }
-
-    // 이전에 선택한 모델이 있으면 선택하고, 없으면 첫 번째 모델 선택
-    const selectedModel = extensionSettings.llm_model || models[0];
-    modelSelect.val(selectedModel);
-    extensionSettings.llm_model = selectedModel;
-}
-
 // LLM 번역 함수
 async function llmTranslate(text) {
+    // OpenAI API 키가 설정되어 있는지 확인
+    if (!secret_state[SECRET_KEYS.OPENAI]) {
+        throw new Error('OpenAI API key is not set in secrets.json');
+    }
+
     const provider = extensionSettings.llm_provider;
     const model = extensionSettings.llm_model;
     const prompt = extensionSettings.llm_prompt;
-
-    // 입력한 프롬프트와 번역할 텍스트를 합칩니다.
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    let apiUrl = '';
-    let requestBody = {};
-
-    // 클라이언트에서 API 키에 접근하지 않고, 서버로 요청을 보냅니다.
-    if (provider === 'openai') {
-        // 서버 측 엔드포인트를 사용합니다.
-        apiUrl = '/api/generate';
-
-        requestBody = {
-            chat_completion_source: 'openai', // OpenAI를 사용함을 명시합니다.
-            model: model,
-            messages: [{ role: 'user', content: fullPrompt }],
-            stream: false, // 스트리밍이 필요 없으므로 false
-            // 필요한 추가 설정이 있다면 여기에 추가합니다.
-        };
-    } else {
-        // 다른 공급자들은 일단 그대로 둡니다.
-        throw new Error('현재 OpenAI만 지원됩니다.');
-    }
-
-    const response = await fetch(apiUrl, {
+    // 기존 /api/generate 엔드포인트 사용
+    const response = await fetch('/api/generate', {
         method: 'POST',
         headers: getRequestHeaders(),
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+            prompt: fullPrompt,
+            model: model,
+            chat_completion_source: 'openai',
+            messages: [{
+                role: 'user',
+                content: fullPrompt
+            }],
+            max_tokens: 500,
+            stream: false,
+        }),
     });
 
-    if (response.ok) {
-        const result = await response.json();
-        // OpenAI 응답 처리를 정확히 합니다.
-        if (provider === 'openai') {
-            return result.choices[0].message.content.trim();
-        } else {
-            return '';
-        }
-    } else {
-        throw new Error(`번역 실패: ${await response.text()}`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Translation failed: ${errorText}`);
     }
+
+    const result = await response.json();
+    // OpenAI 응답 형식에 맞춰 처리
+    return result.choices[0].message.content.trim();
 }
 
 // 메시지 번역 및 업데이트 함수
