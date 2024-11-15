@@ -1,7 +1,5 @@
 // llm_translate/index.js
 
-export { llmTranslate };
-
 import {
     eventSource,
     event_types,
@@ -13,7 +11,7 @@ import {
 } from '../../../../script.js';
 
 import { extension_settings, getContext } from '../../../extensions.js';
-import { SECRET_KEYS, secret_state } from '../../../secrets.js';
+import { SECRET_KEYS } from '../../../secrets.js';
 
 const extensionName = "llm-translator3";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -31,44 +29,41 @@ const defaultSettings = {
     auto_mode: false,
 };
 
-// LLM 번역 함수
+// LLM 번역 함수 - 백엔드 API 구조에 맞춰 수정
 async function llmTranslate(text) {
-    // OpenAI API 키가 설정되어 있는지 확인
-    if (!secret_state[SECRET_KEYS.OPENAI]) {
-        throw new Error('OpenAI API key is not set in secrets.json');
-    }
-
     const provider = extensionSettings.llm_provider;
     const model = extensionSettings.llm_model;
     const prompt = extensionSettings.llm_prompt;
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    // '/api/openai/chat/completions' 엔드포인트 사용
-    const response = await fetch('/api/openai/chat/completions', {
+    // OpenAI API 요청을 위한 body 구성
+    const requestBody = {
+        chat_completion_source: provider, // 'openai'로 설정
+        model: model,
+        messages: [{ 
+            role: 'user', 
+            content: fullPrompt
+        }],
+        stream: false,
+    };
+
+    // 백엔드 API 요청
+    const response = await fetch('/api/chat/completions', {
         method: 'POST',
         headers: getRequestHeaders(),
-        body: JSON.stringify({
-            messages: [{
-                role: 'user',
-                content: fullPrompt
-            }],
-            model: model,
-            temperature: 0.7,
-            max_tokens: 500,
-            stream: false
-        }),
+        body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Translation failed: ${errorText}`);
+        const text = await response.text();
+        throw new Error(`Translation failed: ${text}`);
     }
 
     const result = await response.json();
     return result.choices[0].message.content.trim();
 }
 
-// 나머지 코드는 그대로 유지...
+// 나머지 기존 코드는 그대로 유지...
 
 // 메시지 번역 및 업데이트 함수
 async function translateMessage(messageId) {
