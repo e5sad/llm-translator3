@@ -14,6 +14,8 @@ import {
 
 import { extension_settings, getContext } from '../../../extensions.js';
 
+// secrets.js의 import를 제거합니다.
+
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
@@ -91,39 +93,40 @@ async function llmTranslate(text) {
     // 입력한 프롬프트와 번역할 텍스트를 합칩니다.
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    let apiUrl = '/generate';
+    let apiUrl = '';
     let requestBody = {};
 
-    // 클라이언트에서는 서버로 요청을 보냅니다.
+    // 클라이언트에서 API 키에 접근하지 않고, 서버로 요청을 보냅니다.
     if (provider === 'openai') {
+        // 서버 측 엔드포인트를 사용합니다.
+        apiUrl = '/api/generate';
+
         requestBody = {
-            prompt: fullPrompt,
+            chat_completion_source: 'openai', // OpenAI를 사용함을 명시합니다.
             model: model,
-            api: 'openai',
-            // 필요한 경우 추가 설정을 포함할 수 있습니다.
+            messages: [{ role: 'user', content: fullPrompt }],
+            stream: false, // 스트리밍이 필요 없으므로 false
+            // 필요한 추가 설정이 있다면 여기에 추가합니다.
         };
     } else {
-        // 다른 공급자들도 동일한 방식으로 처리
-        requestBody = {
-            prompt: fullPrompt,
-            model: model,
-            api: provider,
-            // 필요한 경우 추가 설정을 포함할 수 있습니다.
-        };
+        // 다른 공급자들은 일단 그대로 둡니다.
+        throw new Error('현재 OpenAI만 지원됩니다.');
     }
 
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: Object.assign({}, getRequestHeaders(), {
-            'Content-Type': 'application/json',
-        }),
+        headers: getRequestHeaders(),
         body: JSON.stringify(requestBody),
     });
 
     if (response.ok) {
         const result = await response.json();
-        // 응답에서 message를 추출합니다.
-        return result.message.trim();
+        // OpenAI 응답 처리를 정확히 합니다.
+        if (provider === 'openai') {
+            return result.choices[0].message.content.trim();
+        } else {
+            return '';
+        }
     } else {
         throw new Error(`번역 실패: ${await response.text()}`);
     }
