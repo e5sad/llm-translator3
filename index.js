@@ -13,8 +13,8 @@ import {
 } from '../../../../script.js';
 
 import { extension_settings, getContext } from '../../../extensions.js';
-// secrets.js에서 필요한 함수와 변수를 import합니다.
-import { findSecret, SECRET_KEYS } from '../../../secrets.js';
+
+// secrets.js 관련 import는 제거합니다.
 
 // 확장 프로그램의 이름과 경로를 지정합니다.
 const extensionName = "llm-translator3";
@@ -84,39 +84,6 @@ function updateModelList() {
     extensionSettings.llm_model = selectedModel;
 }
 
-// API 키 가져오기 함수
-async function getApiKey(provider) {
-    let secretKey = '';
-
-    // provider에 따라 SECRET_KEYS의 키를 설정
-    switch (provider) {
-        case 'openai':
-            secretKey = SECRET_KEYS.OPENAI;
-            break;
-        // 다른 공급자들은 일단 그대로 둡니다.
-        case 'cohere':
-            secretKey = SECRET_KEYS.COHERE;
-            break;
-        case 'google':
-            secretKey = SECRET_KEYS.MAKERSUITE;
-            break;
-        case 'anthropic':
-            secretKey = SECRET_KEYS.CLAUDE;
-            break;
-        default:
-            throw new Error('지원하지 않는 LLM 공급자입니다.');
-    }
-
-    // findSecret을 통해 API 키를 가져옵니다.
-    const apiKey = await findSecret(secretKey);
-
-    if (apiKey) {
-        return apiKey;
-    } else {
-        throw new Error(`${provider}의 API 키가 설정되어 있지 않습니다.`);
-    }
-}
-
 // LLM 번역 함수
 async function llmTranslate(text) {
     const provider = extensionSettings.llm_provider;
@@ -129,16 +96,13 @@ async function llmTranslate(text) {
     let apiUrl = '';
     let requestBody = {};
 
-    // API 키를 가져옵니다.
-    const apiKey = await getApiKey(provider);
-
-    // OpenAI API 요청을 구성합니다.
+    // 클라이언트에서는 서버로 요청을 보냅니다.
     if (provider === 'openai') {
-        // SillyTavern 서버의 /api/openai/v1/engines/{model}/completions 엔드포인트를 사용합니다.
-        apiUrl = `/api/openai/v1/chat/completions`;
+        apiUrl = `/api/openai/chat`;
         requestBody = {
             model: model,
             messages: [{ role: 'user', content: fullPrompt }],
+            // 필요에 따라 temperature 등의 추가 설정을 포함할 수 있습니다.
         };
     } else {
         // 다른 공급자들은 일단 그대로 둡니다.
@@ -147,7 +111,9 @@ async function llmTranslate(text) {
 
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: Object.assign({}, getRequestHeaders(), {
+            'Content-Type': 'application/json',
+        }),
         body: JSON.stringify(requestBody),
     });
 
