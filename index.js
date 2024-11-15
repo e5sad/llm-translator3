@@ -29,43 +29,58 @@ const defaultSettings = {
     auto_mode: false,
 };
 
-// LLM 번역 함수 - 백엔드 API 구조에 맞춰 수정
+// LLM 번역 함수 수정
 async function llmTranslate(text) {
     const provider = extensionSettings.llm_provider;
     const model = extensionSettings.llm_model;
     const prompt = extensionSettings.llm_prompt;
     const fullPrompt = `${prompt}\n\n"${text}"`;
 
-    // OpenAI API 요청을 위한 body 구성
-    const requestBody = {
-        chat_completion_source: provider, // 'openai'로 설정
-        model: model,
-        messages: [{ 
-            role: 'user', 
-            content: fullPrompt
-        }],
-        stream: false,
-    };
+    let endpoint;
+    let requestBody;
 
-    // 백엔드 API 요청
-    const response = await fetch('/api/chat/completions', {
+    if (provider === 'openai') {
+        endpoint = 'https://api.openai.com/v1/chat/completions';
+        requestBody = {
+            model: model,
+            messages: [{ 
+                role: 'user', 
+                content: fullPrompt
+            }],
+            temperature: 0.7,
+            max_tokens: 1000
+        };
+    } else {
+        throw new Error('Unsupported provider');
+    }
+
+    // API 키 확인
+    const apiKey = SECRET_KEYS[provider]?.api_key;
+    if (!apiKey) {
+        throw new Error(`API key for ${provider} is not set`);
+    }
+
+    // API 요청
+    const response = await fetch(endpoint, {
         method: 'POST',
-        headers: getRequestHeaders(),
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            ...getRequestHeaders()
+        },
         body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Translation failed: ${text}`);
+        const errorText = await response.text();
+        throw new Error(`Translation failed (${response.status}): ${errorText}`);
     }
 
     const result = await response.json();
     return result.choices[0].message.content.trim();
 }
 
-// 나머지 기존 코드는 그대로 유지...
-
-// 메시지 번역 및 업데이트 함수
+// 에러 처리 개선된 translateMessage 함수
 async function translateMessage(messageId) {
     const context = getContext();
     const message = context.chat[messageId];
@@ -76,18 +91,28 @@ async function translateMessage(messageId) {
         message.extra = {};
     }
 
-    // 이미 번역된 메시지는 건너뜁니다.
     if (message.extra.display_text) return;
 
-    // 메시지의 원문을 가져옵니다.
-    const originalText = substituteParams(message.mes, context.name1, message.name);
     try {
+        const originalText = substituteParams(message.mes, context.name1, message.name);
+        
+        // 번역 시작 알림
+        toastr.info('번역 중...', '', { timeOut: 2000 });
+        
         const translation = await llmTranslate(originalText);
         message.extra.display_text = translation;
         updateMessageBlock(messageId, message);
+        
+        // 성공 알림
+        toastr.success('번역 완료');
     } catch (error) {
-        console.error(error);
-        toastr.error('번역에 실패하였습니다.');
+        console.error('Translation error:', error);
+        toastr.error(`번역 실패: ${error.message}`);
+        
+        // 에러가 API 키 관련인 경우 추가 안내
+        if (error.message.includes('API key')) {
+            toastr.warning('설정에서 API 키를 확인해주세요');
+        }
     }
 }
 
